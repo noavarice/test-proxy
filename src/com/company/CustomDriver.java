@@ -1,6 +1,7 @@
 package com.company;
 
 import java.sql.*;
+import java.util.Enumeration;
 import java.util.Properties;
 import java.util.logging.Logger;
 import java.util.regex.Matcher;
@@ -14,12 +15,25 @@ public class CustomDriver implements Driver {
   public Connection connect(final String s, final Properties properties) throws SQLException {
     final Matcher m = URL_FORMAT.matcher(s);
     if (!m.find()) {
-      throw new SQLException("Malformed URL");
+      return null;
     }
 
-    final String actualConnectionString = s.replaceFirst(m.group(1), "");
-    final Connection actualConnection = DriverManager.getConnection(actualConnectionString);
-    return new CustomConnection(actualConnection);
+    final Enumeration<Driver> loadedDrivers = DriverManager.getDrivers();
+    final Class<?> currentClass = this.getClass();
+    final String realConnectionString = s.replaceFirst(m.group(1), "");
+    while (loadedDrivers.hasMoreElements()) {
+      final Driver d = loadedDrivers.nextElement();
+      if (d.getClass().equals(currentClass)) {
+        continue;
+      }
+
+      final Connection realConnection = d.connect(realConnectionString, properties);
+      if (realConnection != null) {
+        return new CustomConnection(realConnection);
+      }
+    }
+
+    throw new SQLException("No suitable driver found for underlying connection");
   }
 
   @Override
